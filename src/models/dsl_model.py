@@ -4,7 +4,16 @@ import torch
 from pytorch_lightning import LightningModule
 from torchmetrics.classification.accuracy import Accuracy
 from mipnet.models.unet import UNet2d
+from torch.optim.lr_scheduler import MultiStepLR
 from torch.nn import MSELoss
+import numpy as np
+import wandb
+
+def from_logspace(indata):
+    data = np.power(10, indata)
+    data -= 1e-14
+    data[data <= 0] = 0
+    return data
 
 class SparseLoss(torch.nn.Module):
 
@@ -14,10 +23,9 @@ class SparseLoss(torch.nn.Module):
 
     def forward(self, preds, targets):
         mask = targets != -100
-        # regularization_loss = self.loss(preds[~mask], targets[~mask])
+        regularization_loss = self.loss(preds[~mask], targets[~mask])
         regression_loss = self.loss(preds[mask], targets[mask])
-
-        return regression_loss# + 0.0000001 * regularization_loss
+        return regression_loss + 1e-6 * regularization_loss
 
 class DSLModel(LightningModule):
 
@@ -25,9 +33,10 @@ class DSLModel(LightningModule):
         self,
         in_channels: int = 5,
         out_channels: int = 7,
-        lr: float = 0.001,
+        lr: float = 1e-5,
         in_size=(256, 256),
-        weight_decay: float = 0.0005
+        weight_decay: float = 0.0001,
+        depth=3,
     ):
         super().__init__()
 
@@ -37,7 +46,8 @@ class DSLModel(LightningModule):
 
         self.model = UNet2d(in_channels,
                             out_channels,
-                            pad_convs=True)
+                            pad_convs=True,
+                            depth=depth)
 
         # loss function
         self.criterion = SparseLoss()
@@ -62,6 +72,19 @@ class DSLModel(LightningModule):
 
         # log train metrics
         self.log("train/loss", loss.detach().item(), on_step=False, on_epoch=True, prog_bar=False)
+
+        if batch_idx % 1000 == 0:
+            inp = batch[0]
+            self.logger.experiment[0].log({"train_batch_image":[wandb.Image(inp[0][c].cpu(), caption="train_batch_image") for c in range(inp.shape[1])]})
+            with torch.no_grad():
+                for c in range(preds.shape[1]):
+                    tvis = from_logspace(targets[:, c].detach().cpu())
+                    pvis = from_logspace(preds[:, c].detach().cpu())
+                    diffvis = tvis - pvis
+                    # predtarg = torch.cat([pvis, tvis], dim=-2)
+                    self.logger.experiment[0].log({f"train_preds_image{c}":[wandb.Image(pt, caption="train_preds_image") for pt in pvis]})
+                    self.logger.experiment[0].log({f"train_target_image{c}":[wandb.Image(tv, caption="train_target_image") for tv in tvis]})
+                    self.logger.experiment[0].log({f"diff_{c}":[wandb.Image(dv, caption="train_diff_image") for dv in diffvis]})
 
         # we can return here dict with any tensors
         # and then read it in some callback or in training_epoch_end() below
@@ -101,6 +124,11 @@ class DSLModel(LightningModule):
         See examples here:
             https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#configure-optimizers
         """
-        return torch.optim.Adam(
+        optimizer = torch.optim.Adam(
             params=self.parameters(), lr=self.hparams.lr, weight_decay=self.hparams.weight_decay
         )
+        return {'optimizer': optimizer,
+                'lr_scheduler': {
+                    'scheduler': MultiStepLR(optimizer, milestones=[9, 12]),
+                    'monitor': 'val/loss',}
+                }

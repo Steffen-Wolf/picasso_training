@@ -9,17 +9,18 @@ import h5py
 import numpy as np
 from tqdm import tqdm
 
-def from_logspace(data):
-    np.power(10, data, out=data)
+def from_logspace(indata):
+    data = np.power(10, indata)
     data -= 1e-14
     data[data <= 0] = 0
     return data
 
 def predict():
 
-    CKPT_PATH = "/lmb/home/swolf/local/src/dsl_training/logs/runs/2021-06-14/17-02-53/checkpoints/epoch=08.ckpt"
+    CKPT_PATH = "/lmb/home/swolf/local/src/dsl_training/logs/runs/2021-07-13/20-48-06/checkpoints/epoch=13-v1.ckpt"#epoch=05.ckpt"
     TEST_DS_PATH = "/lmb/home/swolf/local/src/dsl_training/data/test.zarr"
     OUT_PATH = "/lmb/home/swolf/local/src/dsl_training/data/prediction_00"
+    GT_OUT_PATH = "/lmb/home/swolf/local/src/dsl_training/data/gt"
 
     # load model from checkpoint
     # model __init__ parameters will be loaded from ckpt automatically
@@ -59,12 +60,23 @@ def predict():
     # inference
     for idx, (inp, gt) in tqdm(enumerate(dl)):
         output = trained_model(inp)
-        
-        output = from_logspace(output.cpu().numpy())
+        output = output.cpu().numpy()
+        output_log = from_logspace(output)
+        gt = gt.cpu().numpy()
+        mask = gt == -100
+        gt_log = from_logspace(gt)
+        output_log_masked = output_log.copy()
+        output_log_masked[mask] = 0
+        gt_log[mask] = 0
 
-        with h5py.File(f"{OUT_PATH}/prediction_{idx:06}.h5", "w") as outfile:
+        with h5py.File(f"{OUT_PATH}/halo_data_run00_{idx:06}.h5", "w") as outfile:
             for i, k in enumerate(keys):
-                outfile.create_dataset(k, data=output[0, i], compression="gzip")
+                outfile.create_dataset(k, data=output_log[0, i], compression="gzip")
+                outfile.create_dataset(k+"_masked", data=output_log_masked[0, i], compression="gzip")
+
+        with h5py.File(f"{GT_OUT_PATH}/halo_data_gt_{idx:06}.h5", "w") as outfile:
+            for i, k in enumerate(keys):
+                outfile.create_dataset(k, data=gt_log[0, i], compression="gzip")
 
 if __name__ == "__main__":
     predict()
