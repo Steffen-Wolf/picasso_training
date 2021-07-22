@@ -4,4 +4,4 @@ in_channels: 5
 out_channels: 7
 lr: 0.00001
 weight_decay: 0.0005
-depth: 5
+depth: 4

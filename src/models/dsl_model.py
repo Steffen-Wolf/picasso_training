@@ -115,6 +115,7 @@ class DSLModel(LightningModule):
         # return {"loss": loss, "preds": preds, "targets": targets}
 
     def test_epoch_end(self, outputs: List[Any]):
+        self.model
         pass
 
     def configure_optimizers(self):
