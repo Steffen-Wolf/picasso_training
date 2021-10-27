@@ -2,26 +2,16 @@ from PIL import Image
 from torchvision import transforms
 
 from src.models.dsl_model import DSLModel
+from src.utils.utils import from_logspace, read_yaml_conf
 from src.datamodules.dsl_datamodule import ZarrDataset
 from torch.utils.data import DataLoader
+
 import os
 import h5py
 import numpy as np
 from tqdm import tqdm
 import yaml
 
-def from_logspace(indata):
-    data = np.power(10, indata)
-    data -= 1e-14
-    data[data <= 0] = 0
-    return data
-
-def read_yaml_conf(yaml_file):
-    with open(yaml_file, 'r') as stream:
-        try:
-            return yaml.safe_load(stream)
-        except yaml.YAMLError as exc:
-            print(exc)
 
 def predict():
 

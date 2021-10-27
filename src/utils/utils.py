@@ -2,6 +2,7 @@ import logging
 import warnings
 from typing import List, Sequence
 
+import numpy as np
 import pytorch_lightning as pl
 import rich.syntax
 import rich.tree
@@ -10,6 +11,19 @@ from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning.loggers.wandb import WandbLogger
 from pytorch_lightning.utilities import rank_zero_only
 
+
+def from_logspace(indata):
+    data = np.power(10, indata)
+    data -= 1e-14
+    data[data <= 0] = 0
+    return data
+
+def read_yaml_conf(yaml_file):
+    with open(yaml_file, 'r') as stream:
+        try:
+            return yaml.safe_load(stream)
+        except yaml.YAMLError as exc:
+            print(exc)
 
 def get_logger(name=__name__, level=logging.INFO) -> logging.Logger:
     """Initializes multi-GPU-friendly python logger."""

@@ -3,7 +3,7 @@ from typing import Any, List
 import torch
 from pytorch_lightning import LightningModule
 from torchmetrics.classification.accuracy import Accuracy
-from mipnet.models.unet import UNet2d
+from .unet import UNet2d
 from torch.optim.lr_scheduler import MultiStepLR
 from torch.nn import MSELoss
 import numpy as np
